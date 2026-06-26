@@ -107,6 +107,7 @@ async def send_whatsapp(to: str, body: str):
     r.raise_for_status()
 
 
+@app.post("/webhook/messages/post")
 @app.post("/webhook")
 async def webhook(req: Request):
     log.info("webhook hit")
