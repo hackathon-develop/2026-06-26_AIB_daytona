@@ -15,6 +15,7 @@ send instead of sending, so you can judge the voice + the flagging before it goe
 import os
 import json
 import logging
+import asyncio
 
 import httpx
 from fastapi import FastAPI, Request
@@ -73,26 +74,39 @@ log.info("startup: DRY_RUN=%s MODEL=%s MY_NUMBER=%s WHAPI_RELAY=%s ALLOWLIST=%s"
 
 
 async def llm(message_text: str) -> dict:
-    async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(
-            f"{FEATHERLESS_BASE}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {FEATHERLESS_API_KEY}",
-                "content-type": "application/json",
-            },
-            json={
-                "model": MODEL,
-                "max_tokens": 400,
-                "messages": [
-                    {"role": "system", "content": SYSTEM},
-                    {"role": "user", "content": message_text},
-                ],
-            },
-        )
-    r.raise_for_status()
-    text = r.json()["choices"][0]["message"]["content"]
-    text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-    return json.loads(text)
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=60) as c:
+                r = await c.post(
+                    f"{FEATHERLESS_BASE}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {FEATHERLESS_API_KEY}",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": MODEL,
+                        "max_tokens": 400,
+                        "messages": [
+                            {"role": "system", "content": SYSTEM},
+                            {"role": "user", "content": message_text},
+                        ],
+                    },
+                )
+            if r.status_code == 429:
+                wait = 2 ** attempt
+                log.warning("429 rate limit, retrying in %ds (attempt %d/3)", wait, attempt + 1)
+                await asyncio.sleep(wait)
+                continue
+            r.raise_for_status()
+            text = r.json()["choices"][0]["message"]["content"]
+            text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+            return json.loads(text)
+        except httpx.TimeoutException:
+            if attempt == 2:
+                raise
+            log.warning("LLM timeout, retrying (attempt %d/3)", attempt + 1)
+            await asyncio.sleep(2)
+    raise RuntimeError("LLM failed after 3 attempts")
 
 
 async def send_whatsapp(to: str, body: str):
@@ -102,6 +116,11 @@ async def send_whatsapp(to: str, body: str):
     async with httpx.AsyncClient(timeout=30) as c:
         r = await c.post(WHAPI_RELAY, json={"to": to, "body": body})
     r.raise_for_status()
+
+
+@app.post("/webhook/statuses/post")
+async def webhook_statuses(req: Request):
+    return {"ok": True}
 
 
 @app.post("/webhook/messages/post")
@@ -122,7 +141,12 @@ async def webhook(req: Request):
             log.info("skipping own outgoing message")
             continue
 
-        sender = msg.get("from") or msg.get("chat_id")
+        chat_id = msg.get("chat_id", "")
+        if chat_id.endswith("@g.us"):
+            log.info("skipping group message from chat %s", chat_id)
+            continue
+
+        sender = msg.get("from") or chat_id
         body = msg.get("text", {}).get("body") if isinstance(msg.get("text"), dict) else msg.get("body")
         log.info("message from=%s body=%r", sender, body)
 
