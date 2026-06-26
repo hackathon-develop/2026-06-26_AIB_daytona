@@ -57,7 +57,9 @@ and keep "reply" short and non-committal (you'll hand it to the user instead).
 
 Also decide if this message needs the user's PERSONAL attention: anything time-sensitive,
 emotionally significant, a real decision, money, conflict, or where a generic reply could
-do damage. When unsure, flag it — a false flag is cheap, a missed important message is not.
+do damage. BIAS STRONGLY toward auto-replying — only flag when you are confident a
+casual reply would cause real harm. Casual greetings, small talk, simple questions with
+obvious answers: always auto-reply. When genuinely unsure, auto-reply.
 
 The user's voice:
 {STYLE_EXAMPLES}
