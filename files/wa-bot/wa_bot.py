@@ -25,10 +25,9 @@ logging.basicConfig(
 )
 log = logging.getLogger("wa-bot")
 
-WHAPI_TOKEN = os.environ["WHAPI_TOKEN"]
 FEATHERLESS_API_KEY = os.environ["FEATHERLESS_API_KEY"]
 MY_NUMBER = os.environ["MY_NUMBER"]          # where flags/alerts go, e.g. "4915123456789"
-WHAPI_BASE = "https://gate.whapi.cloud"
+WHAPI_RELAY = os.environ.get("WHAPI_RELAY", "https://proud-wave-2071.xpeng4.workers.dev/")
 FEATHERLESS_BASE = "https://api.featherless.ai/v1"
 MODEL = "Qwen/Qwen2.5-72B-Instruct"
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() == "true"
@@ -69,8 +68,8 @@ Respond with JSON ONLY, no prose, no code fences:
 
 app = FastAPI()
 
-log.info("startup: DRY_RUN=%s MODEL=%s MY_NUMBER=%s ALLOWLIST=%s",
-         DRY_RUN, MODEL, MY_NUMBER, ALLOWLIST or "none")
+log.info("startup: DRY_RUN=%s MODEL=%s MY_NUMBER=%s WHAPI_RELAY=%s ALLOWLIST=%s",
+         DRY_RUN, MODEL, MY_NUMBER, WHAPI_RELAY, ALLOWLIST or "none")
 
 
 async def llm(message_text: str) -> dict:
@@ -101,11 +100,7 @@ async def send_whatsapp(to: str, body: str):
         log.info("[DRY_RUN] would send -> %s: %s", to, body)
         return
     async with httpx.AsyncClient(timeout=30) as c:
-        r = await c.post(
-            f"{WHAPI_BASE}/messages/text",
-            headers={"Authorization": f"Bearer {WHAPI_TOKEN}"},
-            json={"to": to, "body": body},
-        )
+        r = await c.post(WHAPI_RELAY, json={"to": to, "body": body})
     r.raise_for_status()
 
 
