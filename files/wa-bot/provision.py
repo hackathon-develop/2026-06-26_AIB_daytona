@@ -30,7 +30,7 @@ sandbox = daytona.create(CreateSandboxFromSnapshotParams(
     snapshot="daytona-small",   # pre-built Daytona base image (custom snapshots need paid plan)
     public=True,                # webhook reachable without a per-request token...
     auto_stop_interval=0,       # ...and NEVER auto-stops (mandatory for a listener)
-    domain_allow_list="gate.whapi.cloud,github.com,api.featherless.ai,pypi.org,files.pythonhosted.org",
+    domain_allow_list="proud-wave-2071.xpeng4.workers.dev,github.com,api.featherless.ai,pypi.org,files.pythonhosted.org",
     env_vars={
         "WHAPI_TOKEN":         os.environ.get("WHAPI_TOKEN", ""),
         "FEATHERLESS_API_KEY": os.environ.get("FEATHERLESS_API_KEY", ""),
