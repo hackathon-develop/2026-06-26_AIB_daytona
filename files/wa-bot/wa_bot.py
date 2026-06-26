@@ -17,7 +17,7 @@ import json
 import logging
 
 import httpx
-from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi import FastAPI, Request
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +28,6 @@ log = logging.getLogger("wa-bot")
 WHAPI_TOKEN = os.environ["WHAPI_TOKEN"]
 FEATHERLESS_API_KEY = os.environ["FEATHERLESS_API_KEY"]
 MY_NUMBER = os.environ["MY_NUMBER"]          # where flags/alerts go, e.g. "4915123456789"
-WEBHOOK_SECRET = os.environ["WEBHOOK_SECRET"]  # must match the custom header set in Whapi
 WHAPI_BASE = "https://gate.whapi.cloud"
 FEATHERLESS_BASE = "https://api.featherless.ai/v1"
 MODEL = "meta-llama/Meta-Llama-3.1-70B-Instruct"
@@ -109,12 +108,8 @@ async def send_whatsapp(to: str, body: str):
 
 
 @app.post("/webhook")
-async def webhook(req: Request, x_webhook_secret: str | None = Header(default=None)):
-    log.info("webhook hit \u2014 secret present: %s", x_webhook_secret is not None)
-
-    if x_webhook_secret != WEBHOOK_SECRET:
-        log.warning("webhook rejected: bad secret (got %r)", x_webhook_secret)
-        raise HTTPException(status_code=401, detail="bad secret")
+async def webhook(req: Request):
+    log.info("webhook hit")
 
     payload = await req.json()
     log.info("RAW payload: %s", json.dumps(payload)[:3000])
