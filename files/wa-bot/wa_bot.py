@@ -129,17 +129,14 @@ async def webhook_new_chat(req: Request):
     payload = await req.json()
     log.info("new chat event: %s", json.dumps(payload)[:500])
     chats = payload.get("chats", [])
+    relay_base = WHAPI_RELAY.rstrip("/")
     for chat in chats:
         chat_id = chat.get("id", "")
         if chat_id.endswith("@g.us"):
             continue
-        # Fetch the latest message from this new chat and process it
+        log.info("new DM chat: %s", chat_id)
         async with httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(
-                f"https://gate.whapi.cloud/messages/list/{chat_id}",
-                headers={"Authorization": f"Bearer {WHAPI_TOKEN}"},
-                params={"count": 5},
-            )
+            r = await c.get(f"{relay_base}/messages/list/{chat_id}", params={"count": 5})
         if r.status_code != 200:
             log.warning("could not fetch messages for new chat %s: %s", chat_id, r.status_code)
             continue
@@ -151,7 +148,7 @@ async def webhook_new_chat(req: Request):
             sender = msg.get("from") or chat_id
             if not body:
                 continue
-            log.info("new chat message from=%s body=%r", sender, body)
+            log.info("new contact message from=%s body=%r", sender, body)
             try:
                 out = await llm(body)
                 log.info("llm output: %s", out)
