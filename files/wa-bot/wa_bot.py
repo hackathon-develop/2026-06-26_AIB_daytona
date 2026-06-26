@@ -117,6 +117,8 @@ async def webhook(req: Request):
     messages = payload.get("messages", [])
     log.info("messages in payload: %d", len(messages))
 
+    actions = []
+
     for msg in messages:
         if msg.get("from_me"):
             log.info("skipping own outgoing message")
@@ -138,19 +140,26 @@ async def webhook(req: Request):
             log.info("llm output: %s", out)
         except Exception as e:
             log.exception("llm call failed: %s", e)
+            actions.append({"sender": sender, "error": str(e)})
             continue
 
         if out.get("important"):
+            alert = f"\u26a0\ufe0f flagged ({sender}): {out.get('reason','')}\n\n> {body}"
             log.info("flagging as important \u2014 reason: %s", out.get("reason"))
-            await send_whatsapp(MY_NUMBER, f"\u26a0\ufe0f flagged ({sender}): {out.get('reason','')}\n\n> {body}")
+            await send_whatsapp(MY_NUMBER, alert)
+            actions.append({"sender": sender, "action": "flagged_important", "reason": out.get("reason"), "alert_sent_to_owner": alert, "dry_run": DRY_RUN})
             continue
 
         if out.get("needs_user"):
+            alert = f"\u2753 needs you ({sender}): {body}\ndraft: {out.get('reply','')}"
             log.info("flagging as needs_user")
-            await send_whatsapp(MY_NUMBER, f"\u2753 needs you ({sender}): {body}\ndraft: {out.get('reply','')}")
+            await send_whatsapp(MY_NUMBER, alert)
+            actions.append({"sender": sender, "action": "needs_user", "alert_sent_to_owner": alert, "dry_run": DRY_RUN})
             continue
 
-        log.info("auto-replying to %s: %r", sender, out["reply"])
-        await send_whatsapp(sender, out["reply"])
+        reply = out["reply"]
+        log.info("auto-replying to %s: %r", sender, reply)
+        await send_whatsapp(sender, reply)
+        actions.append({"sender": sender, "action": "auto_reply", "reply": reply, "dry_run": DRY_RUN})
 
-    return {"ok": True}
+    return {"ok": True, "processed": len(actions), "actions": actions}
