@@ -27,6 +27,7 @@ logging.basicConfig(
 log = logging.getLogger("wa-bot")
 
 FEATHERLESS_API_KEY = os.environ["FEATHERLESS_API_KEY"]
+WHAPI_TOKEN = os.environ.get("WHAPI_TOKEN", "")
 MY_NUMBER = os.environ["MY_NUMBER"]          # where flags/alerts go, e.g. "4915123456789"
 WHAPI_RELAY = os.environ.get("WHAPI_RELAY", "https://proud-wave-2071.xpeng4.workers.dev/")
 FEATHERLESS_BASE = "https://api.featherless.ai/v1"
@@ -120,6 +121,49 @@ async def send_whatsapp(to: str, body: str):
 
 @app.post("/webhook/statuses/post")
 async def webhook_statuses(req: Request):
+    return {"ok": True}
+
+
+@app.post("/webhook/chats/post")
+async def webhook_new_chat(req: Request):
+    payload = await req.json()
+    log.info("new chat event: %s", json.dumps(payload)[:500])
+    chats = payload.get("chats", [])
+    for chat in chats:
+        chat_id = chat.get("id", "")
+        if chat_id.endswith("@g.us"):
+            continue
+        # Fetch the latest message from this new chat and process it
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(
+                f"https://gate.whapi.cloud/messages/list/{chat_id}",
+                headers={"Authorization": f"Bearer {WHAPI_TOKEN}"},
+                params={"count": 5},
+            )
+        if r.status_code != 200:
+            log.warning("could not fetch messages for new chat %s: %s", chat_id, r.status_code)
+            continue
+        messages = r.json().get("messages", [])
+        for msg in messages:
+            if msg.get("from_me"):
+                continue
+            body = msg.get("text", {}).get("body") if isinstance(msg.get("text"), dict) else msg.get("body")
+            sender = msg.get("from") or chat_id
+            if not body:
+                continue
+            log.info("new chat message from=%s body=%r", sender, body)
+            try:
+                out = await llm(body)
+                log.info("llm output: %s", out)
+            except Exception as e:
+                log.exception("llm failed for new chat: %s", e)
+                continue
+            if out.get("important") or out.get("needs_user"):
+                alert = f"{'⚠️' if out.get('important') else '❓'} new contact ({sender}): {body}\ndraft: {out.get('reply','')}"
+                await send_whatsapp(MY_NUMBER, alert)
+            else:
+                await send_whatsapp(sender, out["reply"])
+            break  # only handle first unread per new chat
     return {"ok": True}
 
 
