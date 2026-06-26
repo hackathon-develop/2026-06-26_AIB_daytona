@@ -30,7 +30,7 @@ FEATHERLESS_API_KEY = os.environ["FEATHERLESS_API_KEY"]
 MY_NUMBER = os.environ["MY_NUMBER"]          # where flags/alerts go, e.g. "4915123456789"
 WHAPI_BASE = "https://gate.whapi.cloud"
 FEATHERLESS_BASE = "https://api.featherless.ai/v1"
-MODEL = "meta-llama/Meta-Llama-3.1-70B-Instruct"
+MODEL = "Qwen/Qwen2.5-72B-Instruct"
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() == "true"
 
 # Optional: only auto-handle these chat ids. Empty = everyone who messages you.
